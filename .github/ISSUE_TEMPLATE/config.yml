@@ -1,8 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: Report an issue with elementary OS from elementary OS
-    url: settings://about
-    about: If you're on elementary OS, report an issue from System Settings → About → Report a Problem
-  - name: Report an issue with elementary OS on GitHub
-    url: https://docs.elementary.io/contributor-guide/feedback/reporting-issues
-    about: See our contributor guide for help reporting issues
