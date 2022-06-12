@@ -10,57 +10,53 @@ apt-get install -y --no-install-recommends ubuntu-keyring ca-certificates deboot
 update-binfmts --enable
 
 rootdir=$(pwd)
-basedir=$(pwd)/artifacts/elementary-rpi
+basedir=$(pwd)/artifacts/rpi
 
 # Free space on rootfs in MiB
 free_space="500"
 
-export packages="elementary-minimal elementary-desktop elementary-standard"
+export packages="ubiquity-frontend-gtk"
 export architecture="arm64"
-export codename="focal"
+export codename="jammy"
 export channel="daily"
 
-version=6.1
+version=22.04
 YYYYMMDD="$(date +%Y%m%d)"
-imagename=elementaryos-$version-$channel-rpi-$YYYYMMDD
+imagename=ubuntucinnamon-$version-$channel-rpi-$YYYYMMDD
 
 mkdir -p "${basedir}"
 cd "${basedir}"
 
 # Bootstrap an ubuntu minimal system
-debootstrap --foreign --arch $architecture $codename elementary-$architecture http://ports.ubuntu.com/ubuntu-ports
+debootstrap --foreign --arch $architecture $codename ubuntucinnamon-$architecture "http://ports.ubuntu.com/ubuntu-ports"
 
 # Add the QEMU emulator for running ARM executables
-cp /usr/bin/qemu-arm-static elementary-$architecture/usr/bin/
+cp /usr/bin/qemu-arm-static ubuntucinnamon-$architecture/usr/bin/
 
 # Run the second stage of the bootstrap in QEMU
-LANG=C chroot elementary-$architecture /debootstrap/debootstrap --second-stage
+LANG=C chroot ubuntucinnamon-$architecture /debootstrap/debootstrap --second-stage
 
 # Copy Raspberry Pi specific files
-cp -r "${rootdir}"/rpi/rootfs/writable/* elementary-${architecture}/
+cp -r "${rootdir}"/rpi/rootfs/writable/* ubuntucinnamon-${architecture}/
 
 # Add the rest of the ubuntu repos
-cat << EOF > elementary-$architecture/etc/apt/sources.list
+cat << EOF > ubuntucinnamon-$architecture/etc/apt/sources.list
 deb http://ports.ubuntu.com/ubuntu-ports $codename main restricted universe multiverse
 deb http://ports.ubuntu.com/ubuntu-ports $codename-updates main restricted universe multiverse
 EOF
 
-# Copy in the elementary PPAs/keys/apt config
-for f in "${rootdir}"/etc/config/archives/*.list; do cp -- "$f" "elementary-$architecture/etc/apt/sources.list.d/$(basename -- "$f")"; done
-for f in "${rootdir}"/etc/config/archives/*.key; do cp -- "$f" "elementary-$architecture/etc/apt/trusted.gpg.d/$(basename -- "$f").asc"; done
-for f in "${rootdir}"/etc/config/archives/*.pref; do cp -- "$f" "elementary-$architecture/etc/apt/preferences.d/$(basename -- "$f")"; done
+# Copy in the ubuntucinnamon PPAs/keys/apt config
+#for f in "${rootdir}"/etc/config/archives/*.list; do cp -- "$f" "ubuntucinnamon-$architecture/etc/apt/sources.list.d/$(basename -- "$f")"; done
+#for f in "${rootdir}"/etc/config/archives/*.key; do cp -- "$f" "ubuntucinnamon-$architecture/etc/apt/trusted.gpg.d/$(basename -- "$f").asc"; done
 
 # Set codename/channel in added repos
-sed -i "s/@CHANNEL/$channel/" elementary-$architecture/etc/apt/sources.list.d/*.list*
-sed -i "s/@BASECODENAME/$codename/" elementary-$architecture/etc/apt/sources.list.d/*.list*
+#sed -i "s/@CHANNEL/$channel/" ubuntucinnamon-$architecture/etc/apt/sources.list.d/*.list*
+#sed -i "s/@BASECODENAME/$codename/" ubuntucinnamon-$architecture/etc/apt/sources.list.d/*.list*
 
-# Set codename in added preferences
-sed -i "s/@BASECODENAME/$codename/" elementary-$architecture/etc/apt/preferences.d/*.pref*
+echo "ubuntucinnamon" > ubuntucinnamon-$architecture/etc/hostname
 
-echo "elementary" > elementary-$architecture/etc/hostname
-
-cat << EOF > elementary-${architecture}/etc/hosts
-127.0.0.1       elementary    localhost
+cat << EOF > ubuntucinnamon-${architecture}/etc/hosts
+127.0.0.1       ubuntucinnamon    localhost
 ::1             localhost ip6-localhost ip6-loopback
 fe00::0         ip6-localnet
 ff00::0         ip6-mcastprefix
@@ -69,7 +65,7 @@ ff02::2         ip6-allrouters
 EOF
 
 # Configure mount points
-cat << EOF > elementary-${architecture}/etc/fstab
+cat << EOF > ubuntucinnamon-${architecture}/etc/fstab
 # <file system> <mount point>   <type>  <options>       <dump>  <pass>
 proc /proc proc nodev,noexec,nosuid 0  0
 LABEL=writable    /     ext4    defaults    0 0
@@ -81,26 +77,33 @@ export DEBIAN_FRONTEND=noninteractive
 # Config to stop flash-kernel trying to detect the hardware in chroot
 export FK_MACHINE=none
 
-mount -t proc proc elementary-$architecture/proc
-mount -o bind /dev/ elementary-$architecture/dev/
-mount -o bind /dev/pts elementary-$architecture/dev/pts
+mount -t proc proc ubuntucinnamon-$architecture/proc
+mount -o bind /dev/ ubuntucinnamon-$architecture/dev/
+mount -o bind /dev/pts ubuntucinnamon-$architecture/dev/pts
+
+chroot ubuntucinnamon-$architecture apt-get install software-properties-common -y
+chroot ubuntucinnamon-$architecture add-apt-repository ppa:ubuntucinnamonremix/all -y
 
 # Make a third stage that installs all of the metapackages
-cat << EOF > elementary-$architecture/third-stage
+cat << EOF > ubuntucinnamon-$architecture/third-stage
 #!/bin/bash
+apt-get install software-properties-common -y
+add-apt-repository ppa:ubuntucinnamonremix/all -y
 apt-get update
 apt-get --yes upgrade
 apt-get --yes install $packages
 
 rm -f /third-stage
+
+apt-get --yes install ubuntucinnamon-desktop
 EOF
 
-chmod +x elementary-$architecture/third-stage
-LANG=C chroot elementary-$architecture /third-stage
+chmod +x ubuntucinnamon-$architecture/third-stage
+LANG=C chroot ubuntucinnamon-$architecture /third-stage
 
 
 # Install Raspberry Pi specific packages
-cat << EOF > elementary-$architecture/hardware
+cat << EOF > ubuntucinnamon-$architecture/hardware
 #!/bin/bash
 
 # Make a dummy folder for the boot partition so packages install properly,
@@ -117,33 +120,31 @@ rm -rf /boot/firmware
 rm -f hardware
 EOF
 
-chmod +x elementary-$architecture/hardware
-LANG=C chroot elementary-$architecture /hardware
+chmod +x ubuntucinnamon-$architecture/hardware
+LANG=C chroot ubuntucinnamon-$architecture /hardware
 
 # Copy in any file overrides
-cp -r "${rootdir}"/etc/config/includes.chroot/* elementary-$architecture/
+cp -r "${rootdir}"/etc/config/includes.chroot/* ubuntucinnamon-$architecture/
 
-mkdir elementary-$architecture/hooks
-cp "${rootdir}"/etc/config/hooks/live/*.chroot elementary-$architecture/hooks
+mkdir ubuntucinnamon-$architecture/hooks
+cp "${rootdir}"/etc/config/hooks/live/*.chroot ubuntucinnamon-$architecture/hooks
 
-hook_files="elementary-$architecture/hooks/*"
+hook_files="ubuntucinnamon-$architecture/hooks/*"
 for f in $hook_files
 do
     base=$(basename "${f}")
-    LANG=C chroot elementary-$architecture "/hooks/${base}"
+    LANG=C chroot ubuntucinnamon-$architecture "/hooks/${base}"
 done
 
-rm -r "elementary-$architecture/hooks"
+rm -r "ubuntucinnamon-$architecture/hooks"
 
 # Add a oneshot service to grow the rootfs on first boot
-install -m 755 -o root -g root "${rootdir}/rpi/files/resizerootfs" "elementary-$architecture/usr/sbin/resizerootfs"
-install -m 644 -o root -g root "${rootdir}/pinebookpro/files/resizerootfs.service" "elementary-$architecture/etc/systemd/system"
-mkdir -p "elementary-$architecture/etc/systemd/system/systemd-remount-fs.service.requires/"
-ln -s /etc/systemd/system/resizerootfs.service "elementary-$architecture/etc/systemd/system/systemd-remount-fs.service.requires/resizerootfs.service"
-
+install -m 755 -o root -g root "${rootdir}/rpi/files/resizerootfs" "ubuntucinnamon-$architecture/usr/sbin/resizerootfs"
+mkdir -p "ubuntucinnamon-$architecture/etc/systemd/system/systemd-remount-fs.service.requires/"
+ln -s /etc/systemd/system/resizerootfs.service "ubuntucinnamon-$architecture/etc/systemd/system/systemd-remount-fs.service.requires/resizerootfs.service"
 
 # Support for kernel updates on the Pi 400
-cat << EOF >> elementary-$architecture/etc/flash-kernel/db
+cat << EOF >> ubuntucinnamon-$architecture/etc/flash-kernel/db
 
 Machine: Raspberry Pi 400 Rev 1.0
 Method: pi
@@ -154,7 +155,7 @@ Required-Packages: u-boot-tools
 EOF
 
 # Calculate the space to create the image.
-root_size=$(du -s -B1K elementary-$architecture | cut -f1)
+root_size=$(du -s -B1K ubuntucinnamon-$architecture | cut -f1)
 raw_size=$(($((free_space*1024))+root_size))
 
 # Create the disk and partition it
@@ -186,14 +187,14 @@ mkdir -p "${basedir}/bootp" "${basedir}/root"
 mount -t vfat "$bootp" "${basedir}/bootp"
 mount "$rootp" "${basedir}/root"
 
-mkdir -p elementary-$architecture/boot/firmware
-mount -o bind "${basedir}/bootp/" elementary-$architecture/boot/firmware
+mkdir -p ubuntucinnamon-$architecture/boot/firmware
+mount -o bind "${basedir}/bootp/" ubuntucinnamon-$architecture/boot/firmware
 
 # Copy Raspberry Pi specific files
-cp -r "${rootdir}"/rpi/rootfs/system-boot/* elementary-${architecture}/boot/firmware/
+cp -r "${rootdir}"/rpi/rootfs/system-boot/* ubuntucinnamon-${architecture}/boot/firmware/
 
 # Copy kernels and firemware to boot partition
-cat << EOF > elementary-$architecture/hardware
+cat << EOF > ubuntucinnamon-$architecture/hardware
 #!/bin/bash
 
 cp /boot/vmlinuz /boot/firmware/vmlinuz
@@ -206,8 +207,8 @@ cp -r /lib/firmware/*-raspi/device-tree/overlays /boot/firmware/
 rm -f hardware
 EOF
 
-chmod +x elementary-$architecture/hardware
-LANG=C chroot elementary-$architecture /hardware
+chmod +x ubuntucinnamon-$architecture/hardware
+LANG=C chroot ubuntucinnamon-$architecture /hardware
 
 # Grab some updated firmware from the Raspberry Pi foundation
 git clone -b '1.20201022' --single-branch --depth 1 https://github.com/raspberrypi/firmware raspi-firmware
@@ -215,13 +216,13 @@ cp raspi-firmware/boot/*.elf "${basedir}/bootp/"
 cp raspi-firmware/boot/*.dat "${basedir}/bootp/"
 cp raspi-firmware/boot/bootcode.bin "${basedir}/bootp/"
 
-umount elementary-$architecture/dev/pts
-umount elementary-$architecture/dev/
-umount elementary-$architecture/proc
-umount elementary-$architecture/boot/firmware
+umount ubuntucinnamon-$architecture/dev/pts
+umount ubuntucinnamon-$architecture/dev/
+umount ubuntucinnamon-$architecture/proc
+umount ubuntucinnamon-$architecture/boot/firmware
 
 echo "Rsyncing rootfs into image file"
-rsync -HPavz -q "${basedir}/elementary-$architecture/" "${basedir}/root/"
+rsync -HPavz -q "${basedir}/ubuntucinnamon-$architecture/" "${basedir}/root/"
 
 # Unmount partitions
 umount "$bootp"
@@ -245,21 +246,3 @@ ENDPOINT="$3"
 BUCKET="$4"
 IMGPATH="${basedir}"/${imagename}.img.xz
 IMGNAME=${channel}-rpi/$(basename "$IMGPATH")
-
-apt-get install -y curl python3 python3-distutils
-
-curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-python3 get-pip.py
-pip install boto3
-
-python3 upload.py "$KEY" "$SECRET" "$ENDPOINT" "$BUCKET" "$IMGPATH" "$IMGNAME" || exit 1
-
-CHECKSUMPATH="${basedir}"/${imagename}.md5.txt
-CHECKSUMNAME=${channel}-rpi/$(basename "$CHECKSUMPATH")
-
-python3 upload.py "$KEY" "$SECRET" "$ENDPOINT" "$BUCKET" "$CHECKSUMPATH" "$CHECKSUMNAME" || exit 1
-
-CHECKSUMPATH="${basedir}"/${imagename}.sha256.txt
-CHECKSUMNAME=${channel}-rpi/$(basename "$CHECKSUMPATH")
-
-python3 upload.py "$KEY" "$SECRET" "$ENDPOINT" "$BUCKET" "$CHECKSUMPATH" "$CHECKSUMNAME" || exit 1
